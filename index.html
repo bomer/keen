@@ -13,7 +13,7 @@
 	<meta name="viewport" content="width=device-width, target-densitydpi=300dpi, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
 	<meta name="format-detection" content="telephone=no" />
 	<title>Game Name</title>
-
+	
 	<style>
 		html,body{
 			margin:0;
@@ -30,83 +30,150 @@
 		<canvas id="canvas" width="200" height="100" style="border:0px">
 		</canvas>
 	</div>
-
-	<script>
-//0,0 is top left in Canvas
-var mobileRatio = 9/16;
-var height = window.innerHeight;
-var width=height / (16/9);
-
-var player={};
-var gravity=.91/2;
-var keymovepower=0.55;
-var friction = 0.95;
-
-function init() {
-	canvas.width  = width
-	canvas.height = height;
-	canvas.imageSmoothingEnabled = true;
-
-	player.x=width/2; //Init player
-	player.y=80;
-	player.xspeed=0;
-	player.yspeed=0;
-}
-
-function drawGame(){
-	var ctx = canvas.getContext("2d");
-	//draw Ball
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
-	ctx.beginPath();
-	ctx.arc(player.x,player.y,19 * mobileRatio,0,2*Math.PI);
-	ctx.stroke();
-	ctx.fill();
-}
-
-function updateGame(){
-	//Gravity + movement
-	player.yspeed+=gravity;
-	if (player.jumpCountdown!=0)
-		player.jumpCountdown--;
-	//Calculate key movement for old school keyboards.
-	if (keys[37])	//Left arrow
-		player.xspeed-=keymovepower;
-	if (keys[39])	//Right arrow
-		player.xspeed+=keymovepower;
-
-	//Calculate gyro into player pos
-	player.xspeed*=friction;
-	//floor
-	if (player.y>=height - 50){
-		player.yspeed=0;
-	}
-	//Update player pos
-	player.x+=player.xspeed;
-	player.y+=player.yspeed;
-
-	if (player.x<0)
-		player.x=width;
-	if (player.x>width)
-		player.x=0;
 	
-	if (player.dead)
-		init()	
-}
+	<script>
+		//0,0 is top left in Canvas
+		var mobileRatio = 9/16;
+		var height = window.innerHeight;
+		var width= window.innerWidth; //height / (16/9);
+		
+		var player={};
+		var gravity=.91/2;
+		var keymovepower=6;
+		var groundfriction = 0;
+		var airFriction = 0.90;
+		var friction=groundfriction;
 
-init()
- 
-var keys = [];
-window.onkeyup = function(e) {keys[e.keyCode]=false;}
-window.onkeydown = function(e) {keys[e.keyCode]=true;}
+		var imagenames=['fall_left','fall_right','up_left','up_right'];
+		var sprites = [];
+		
+		function init() {
+			canvas.width  = width
+			canvas.height = height;
+			canvas.imageSmoothingEnabled = true;
+			
+			player.x=width/2; //Init player
+			player.y=80;
+			player.xspeed=0;
+			player.yspeed=0;
+			player.onground=false;
+			player.pogo=false;
+			player.pogocountdown=0;
 
-//Game Loop
-var ONE_FRAME_TIME = 1000 / 60 ;
-var mainloop = function() {
-	updateGame();
-	drawGame();
-};
-setInterval( mainloop, ONE_FRAME_TIME );
+			player.jumpcounter=0;
 
-</script>
+			//Load Sprints from strings of file locations to memory.
+			if(sprites.length==0){
+				var type = '.png';
+				for (var i = 0; i < imagenames.length; i++) {
+					var drawing = new Image();
+					drawing.src = 'img/' + imagenames[i] + type;
+					sprites.push({name: imagenames[i],image:drawing});
+				}
+			}
+		}
+		
+		function drawGame(){
+			var ctx = canvas.getContext("2d");
+			//draw Ball
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.beginPath();
+			// ctx.arc(player.x,player.y,19 * mobileRatio,0,2*Math.PI);
+			ctx.drawImage(sprites[currentSprite].image,player.x,player.y-100,52,52);
+			ctx.stroke();
+			ctx.fill();
+		}
+		
+		function updateGame(){
+			//Gravity + movement
+			player.yspeed+=gravity;
+
+			//Check if on ground
+			if (player.y>=height - 50){
+				player.yspeed=0;
+				player.onground=true;
+				player.jumpcounter=0;
+			}
+			else
+				player.onground=false;
+
+
+
+			//Calculate key movement for old school keyboards.
+			//Left arrow
+			if (keys[37]){
+				player.xspeed=-keymovepower;
+			}	
+			//Right arrow
+			else if (keys[39]){
+				player.xspeed=+keymovepower;
+			}
+			else {
+				player.xspeed=0;
+			}
+
+			//Handle spacebar
+			if (keys[32] || player.pogo){
+				if(keys[32])
+					player.jumpcounter+=1;
+				if(player.onground){
+					player.yspeed-=10;
+					if(player.pogo)
+						player.yspeed-=2;
+				}
+				if(player.jumpcounter>10){
+					player.yspeed-=6;
+					if(player.pogo)
+						player.yspeed-=2;
+					player.jumpcounter=-999;
+				}
+
+			}
+
+			//handle pogo
+			if(keys[17] && player.pogocountdown<1){
+				player.pogo=!player.pogo;
+				player.pogocountdown=60;
+			}
+			if(player.pogocountdown>0)
+				player.pogocountdown--;
+
+			//Update player pos
+			player.x+=player.xspeed;
+			player.y+=player.yspeed;
+			
+			if (player.x<0)
+				player.x=width;
+			if (player.x>width)
+				player.x=0;
+
+				//Player Sprites
+			if (player.xspeed<=0)
+				currentSprite=0
+			else currentSprite=1;
+
+			if (player.jumpcounter>0){
+				currentSprite+=2;
+			}
+			
+			if (player.dead)
+				init()	
+		}
+		
+		init()
+		
+		var keys = [];
+		window.onkeyup = function(e) {keys[e.keyCode]=false;}
+		window.onkeydown = function(e) {keys[e.keyCode]=true;}
+		
+		//Game Loop
+		var ONE_FRAME_TIME = 1000 / 60 ;
+		var mainloop = function() {
+			updateGame();
+			drawGame();
+		};
+		setInterval( mainloop, ONE_FRAME_TIME );
+		
+	</script>
 </body>
 </html>
